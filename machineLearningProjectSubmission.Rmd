@@ -1,0 +1,103 @@
+---
+title: "Machine Learning Project Submission"
+author: "Peter Geers"
+date: "3 februari 2017"
+output:
+  rmarkdown::html_document:
+    theme: lumen
+    toc: true
+    highlight: haddock
+  pdf_document:
+    toc: true
+    highlight: haddock
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Background
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. [More on Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements ](http://groupware.les.inf.puc-rio.br/public/papers/2012.Ugulino.WearableComputing.HAR.Classifier.RIBBON.pdf)
+
+## Project Goal
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+# Load and clean data for processing
+
+```{r initialSetup, cache=TRUE}
+set.seed(23442) # For reproducibile purpose
+
+trainFullData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", sep = ",")
+
+testFullData <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", sep = ",")
+
+traindt <- trainFullData[, colSums(is.na(trainFullData)) == 0]
+testdt <- testFullData[, colSums(is.na(testFullData)) == 0]
+
+classe <- traindt$classe
+trainRemove <- grepl("^X|timestamp|window", names(traindt))
+traindt <- traindt[, !trainRemove]
+trainCleaned <- traindt[, sapply(traindt, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(testdt))
+testdt <- testdt[, !testRemove]
+testCleaned <- testdt[, sapply(testdt, is.numeric)]
+```
+Train data set has **`r dim(trainCleaned)`** observations and objects,  test data set **`r dim(testCleaned)`**.
+
+# Prediction modeling
+
+Now we have to find a better fitting prediction model with the cleaned training data set. We have to partition it further as train and test data for prediction. To perform cross-validation, the training data set is partionned into 2 sets: subTraining (70%) and subTest (30%). This will be performed using random subsampling without replacement.
+
+```{r partitioning}
+suppressMessages(library(caret))
+inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
+subtrainData <- trainCleaned[inTrain, ]
+subtestData <- trainCleaned[-inTrain, ]
+```
+
+## Decision Tree
+
+```{r decisionTree}
+suppressMessages(library(rpart))
+suppressMessages(library(rpart.plot))
+modelDecTree <- rpart(classe ~ ., data=subtrainData, method="class")
+predDecTree <- predict(modelDecTree, subtestData, type="class")
+rpart.plot(modelDecTree, main="Classification Tree", extra=102, under=TRUE, faclen=1)
+confusionMatrix(predDecTree, subtestData$classe) # testing results with confusionMatrix
+accuracyPredTree <- postResample(predDecTree, subtestData$classe) #Finding the accuracy of the model
+oosePredTree <- 1 - as.numeric(confusionMatrix(subtestData$classe, predDecTree)$overall[1])# Finding the out of sample error
+```
+
+The estimated accuracy of the Decision Tree model is **`r round(accuracyPredTree[1]*100,2)`%** and the estimated out-of-sample error is **`r round(oosePredTree*100,2)`%**.
+
+## Random Forest
+
+```{r randomforest}
+suppressMessages(library(randomForest))
+modelRanFor <- randomForest(classe ~ ., data=subtrainData, method="class")
+predRanFor <- predict(modelRanFor, subtestData, type="class")
+confusionMatrix(predRanFor, subtestData$classe)# testing results with confusionMatrix
+plot(modelRanFor, log="y", main="Error rate over Rainforest Model")
+legend("topright", legend=unique(subtestData$classe), col=unique(as.numeric(subtestData$classe)), pch=19)
+varImpPlot(modelRanFor, main=" Average Importance plots")
+accuracyRanFor <- postResample(predRanFor, subtestData$classe)#Finding the accuracy of the model
+ooseRanFor <- 1 - as.numeric(confusionMatrix(subtestData$classe, predRanFor)$overall[1])# Finding the out of sample error
+```
+The estimated accuracy of the Random Forest model is **`r round(accuracyRanFor[1]*100,2)`%** and the estimated out-of-sample error is **`r round(ooseRanFor*100,2)`%**.
+
+## Final prediction 
+```{r outcomeLevels}
+## predict outcome levels on the original Testing data set using Random Forest algorithm
+predictfinal <- predict(modelRanFor, testCleaned, type="class")
+predictfinal
+```
+
+# Conclusion
+
+There are many different machine learning algorithms. I chose to compare a Random Forest and Decision Tree model. 
+* The estimated accuracy of the Decision Tree model is **`r round(accuracyPredTree[1]*100,2)`%** and the estimated out-of-sample error is **`r round(oosePredTree*100,2)`%**.
+* The estimated accuracy of the Random Forest model is **`r round(accuracyRanFor[1]*100,2)`%** and the estimated out-of-sample error is **`r round(ooseRanFor*100,2)`%**.
+
+For this data, the Random Forest proved to be a more accurate way to predict the outcome.
