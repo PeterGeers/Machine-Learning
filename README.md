@@ -1,5 +1,5 @@
 # Machine-Learning
-Submission of Project for Coursera NMachine Learbing assignment.
+Project submission for Coursera Machine Learning assignment.
 
 Here you can find the
 - RMD file : [machineLearningProjectSubmission.Rmd](https://github.com/PeterGeers/Machine-Learning/blob/master/machineLearningProjectSubmission.Rmd)
